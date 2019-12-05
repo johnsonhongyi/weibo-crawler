@@ -224,9 +224,12 @@ class Weibo(object):
                             video_url = ''
         return video_url
 
-    def download_one_file(self, url, file_path, type, weibo_id):
+    def download_one_file(self, url, file_path, itype, weibo_id):
         """下载单个文件(图片/视频)"""
         try:
+            if itype == 'video':
+                file_suffix = file_path[file_path.rfind('.'):]
+
             if not os.path.isfile(file_path):
                 s = requests.Session()
                 s.mount(url, HTTPAdapter(max_retries=5))
@@ -235,24 +238,24 @@ class Weibo(object):
                     f.write(downloaded.content)
         except Exception as e:
             error_file = self.get_filepath(
-                type) + os.sep + 'not_downloaded.txt'
+                itype) + os.sep + 'not_downloaded.txt'
             with open(error_file, 'ab') as f:
                 url = str(weibo_id) + ':' + url + '\n'
                 f.write(url.encode(sys.stdout.encoding))
             print('Error: ', e)
             traceback.print_exc()
 
-    def download_files(self, type):
+    def download_files(self, itype):
         """下载文件(图片/视频)"""
         try:
-            if type == 'img':
+            if itype == 'img':
                 describe = u'图片'
                 key = 'pics'
             else:
                 describe = u'视频'
                 key = 'video_url'
             print(u'即将进行%s下载' % describe)
-            file_dir = self.get_filepath(type)
+            file_dir = self.get_filepath(itype)
             for w in tqdm(self.weibo, desc='Download progress'):
                 if w[key]:
                     # file_prefix = w['created_at'][:11].replace(
@@ -262,23 +265,28 @@ class Weibo(object):
                     print("topics:%s" % (topics))
                     file_prefix = w['created_at'][:11].replace(
                         '-', '') + '_' + str(w['id'])
-                    if type == 'img' and ',' in w[key]:
+                    if itype == 'img' and ',' in w[key]:
                         w[key] = w[key].split(',')
                         for j, url in enumerate(w[key]):
                             file_suffix = url[url.rfind('.'):]
                             file_name = file_prefix + '_' + str(
                                 j + 1) + file_suffix
                             file_path = file_dir + os.sep + file_name
-                            self.download_one_file(url, file_path, type,
+                            self.download_one_file(url, file_path, itype,
                                                    w['id'])
                     else:
-                        if type == 'video':
+                        if itype == 'video':
                             file_suffix = '.mp4'
                         else:
                             file_suffix = w[key][w[key].rfind('.'):]
                         file_name = file_prefix + file_suffix
+                        file_txt = file_prefix + '.txt'
+                        file_txt_path = file_dir + os.sep + file_txt
+                        if not os.path.exists(file_txt_path):
+                            with open(file_txt_path, 'wb') as f:
+                                f.write('微博正文:'+w['text'].encode('utf-8')+'\n'+'话题:'+w['topics'].encode('utf-8')+'\n')
                         file_path = file_dir + os.sep + file_name
-                        self.download_one_file(w[key], file_path, type,
+                        self.download_one_file(w[key], file_path, itype,
                                                w['id'])
             print(u'%s下载完毕,保存路径:' % describe)
             print(file_dir)
@@ -410,15 +418,16 @@ class Weibo(object):
         """打印一条微博"""
         print(u'微博id：%d' % weibo['id'])
         print(u'微博正文：%s' % weibo['text'])
-        print(u'原始图片url：%s' % weibo['pics'])
-        print(u'微博位置：%s' % weibo['location'])
+        # print(u'原始图片url：%s' % weibo['pics'])
+        print(u'videourl：%s' % weibo['video_url'])
+        # print(u'微博位置：%s' % weibo['location'])
         print(u'发布时间：%s' % weibo['created_at'])
         print(u'发布工具：%s' % weibo['source'])
         print(u'点赞数：%d' % weibo['attitudes_count'])
         print(u'评论数：%d' % weibo['comments_count'])
         print(u'转发数：%d' % weibo['reposts_count'])
         print(u'话题：%s' % weibo['topics'])
-        print(u'@用户：%s' % weibo['at_users'])
+        # print(u'@用户：%s' % weibo['at_users'])
 
     def print_weibo(self, weibo):
         """打印微博，若为转发微博，会同时打印原创和转发部分"""
@@ -538,19 +547,19 @@ class Weibo(object):
             write_info.append(wb)
         return write_info
 
-    def get_filepath(self, type):
+    def get_filepath(self, itype):
         """获取结果文件路径"""
         try:
             file_dir = os.path.split(
                 os.path.realpath(__file__)
             )[0] + os.sep + 'weibo' + os.sep + self.user['screen_name']
-            if type == 'img' or type == 'video':
-                file_dir = file_dir + os.sep + type
+            if itype == 'img' or itype == 'video':
+                file_dir = file_dir + os.sep + itype
             if not os.path.isdir(file_dir):
                 os.makedirs(file_dir)
-            if type == 'img' or type == 'video':
+            if itype == 'img' or itype == 'video':
                 return file_dir
-            file_path = file_dir + os.sep + self.user_id + '.' + type
+            file_path = file_dir + os.sep + self.user_id + '.' + itype
             return file_path
         except Exception as e:
             print('Error: ', e)
@@ -653,21 +662,17 @@ class Weibo(object):
                 self.cursor.execute(create_sql.format(db)) if self.cursor.fetchone() is None else None
                 # 关闭游标,关闭连接,初始化
                 (self.cursor.close(), self.db.close(), self.__init__(db)) if database is None else None
-
                 or 
                 try:
                     db = pymysql.connect(host='192.168.89.77', user='root', passwd='root123456', port=3306)
                     cur = db.cursor()
-
                     try:
                         cur.execute('show databases;')
                         data = cur.fetchall()
                         #data是元组，试着转换成list，允许修改，这样后面阶段的事情比较容易处理
                         listdata = list(data)
                         print('show databases执行完毕\n')
-
                         print (listdata)
-
                         result = "'mysql'," in listdata
                         #result = "\'mysql\'\," in data
                         print(result)

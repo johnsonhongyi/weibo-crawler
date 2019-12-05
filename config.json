@@ -1,8 +1,8 @@
 {
     "user_id_list": ["1855787821","1005052092751083"],
     "filter": 1,
-    "since_date": "2019-11-25",
-    "write_mode": ["mysql"],
+    "since_date": "2019-11-30",
+    "write_mode": ["csv"],
     "pic_download": 0,
     "video_download": 1,
     "mysql_config": {

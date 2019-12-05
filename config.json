@@ -1,15 +1,15 @@
 {
-    "user_id_list": ["1669879400"],
+    "user_id_list": ["1855787821","1005052092751083"],
     "filter": 1,
-    "since_date": "2018-01-01",
-    "write_mode": ["csv"],
-    "pic_download": 1,
+    "since_date": "2019-11-25",
+    "write_mode": ["mysql"],
+    "pic_download": 0,
     "video_download": 1,
     "mysql_config": {
-        "host": "localhost",
-        "port": 3306,
+        "host": "172.16.26.18",
+        "port": 31306,
         "user": "root",
-        "password": "123456",
+        "password": "",
         "charset": "utf8mb4"
     }
 }

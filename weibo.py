@@ -19,6 +19,9 @@ from requests.adapters import HTTPAdapter
 from tqdm import tqdm
 import re
 
+# export PYTHONIOENCODING=utf-8
+# nohup python weibo.py > console.log 2>&1 &
+
 
 class Weibo(object):
     def __init__(self, config):
@@ -49,7 +52,8 @@ class Weibo(object):
         self.got_count = 0  # 存储爬取到的微博数
         self.weibo = []  # 存储爬取到的所有微博信息
         self.weibo_id_list = []  # 存储爬取到的所有微博id
-        self.re = re.compile(r'[-,$()#+&*]')
+        self.re_spec_str = re.compile(r'[-,$()#+&*]')
+        self.re_movie_name = re.compile(r'《([^》]+)》')
 
     def validate_config(self, config):
         """验证配置是否正确"""
@@ -116,16 +120,21 @@ class Weibo(object):
 
     def user_to_mysql(self):
         """将爬取的用户信息写入MySQL数据库"""
-        mysql_config = {
-            'host': 'localhost',
-            'port': 3306,
-            'user': 'root',
-            'password': '123456',
-            'charset': 'utf8mb4'
-        }
+        # mysql_config = {
+        #     'host': 'localhost',
+        #     'port': 3306,
+        #     'user': 'root',
+        #     'password': '123456',
+        #     'charset': 'utf8mb4'
+        # }
         # 创建'weibo'数据库
         create_database = """CREATE DATABASE IF NOT EXISTS weibo DEFAULT
                          CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"""
+
+        if self.mysql_config:
+            mysql_config = self.mysql_config
+        else:
+            raise Exception(u"请检查mysql_config配置")
         self.mysql_create_database(mysql_config, create_database)
         # 创建'user'表
         create_table = """
@@ -261,8 +270,11 @@ class Weibo(object):
                     # file_prefix = w['created_at'][:11].replace(
                     #     '-', '') + '_' + str(w['id'])
 
-                    topics = "".join(re.split(self.re, w['topics']))
-                    print("topics:%s" % (topics))
+                    topics = "".join(re.split(self.re_spec_str, w['topics']))
+                    movie_name = "".join(re.findall(self.re_movie_name, w['text'].encode('utf-8'))).decode('utf-8')
+                    # python3的解决办法：s.encode('utf-8').decode('unicode_escape')
+                    # python2的解决方法：s.decode('unicode_escape')    s.decode('unicode_escape').encode('utf-8')
+                    print("movie_name:%s topics:%s" % (movie_name ,topics))
                     file_prefix = w['created_at'][:11].replace(
                         '-', '') + '_' + str(w['id'])
                     if itype == 'img' and ',' in w[key]:
@@ -284,7 +296,8 @@ class Weibo(object):
                         file_txt_path = file_dir + os.sep + file_txt
                         if not os.path.exists(file_txt_path):
                             with open(file_txt_path, 'wb') as f:
-                                f.write('微博正文:'+w['text'].encode('utf-8')+'\n'+'话题:'+w['topics'].encode('utf-8')+'\n')
+                                f.write(
+                                    '微博正文:' + w['text'].encode('utf-8') + '\n' + '话题:' + w['topics'].encode('utf-8') + '\n')
                         file_path = file_dir + os.sep + file_name
                         self.download_one_file(w[key], file_path, itype,
                                                w['id'])
@@ -363,6 +376,7 @@ class Weibo(object):
 
     def standardize_info(self, weibo):
         """标准化信息，去除乱码"""
+
         for k, v in weibo.items():
             if 'int' not in str(type(v)) and 'long' not in str(
                     type(v)) and 'bool' not in str(type(v)):
@@ -419,7 +433,7 @@ class Weibo(object):
         print(u'微博id：%d' % weibo['id'])
         print(u'微博正文：%s' % weibo['text'])
         # print(u'原始图片url：%s' % weibo['pics'])
-        print(u'videourl：%s' % weibo['video_url'])
+        print(u'video:%s' % weibo['video_url'])
         # print(u'微博位置：%s' % weibo['location'])
         print(u'发布时间：%s' % weibo['created_at'])
         print(u'发布工具：%s' % weibo['source'])
@@ -680,12 +694,13 @@ class Weibo(object):
             if self.mysql_config:
                 mysql_config = self.mysql_config
             connection = pymysql.connect(**mysql_config)
-            cursor = connection.cursor()
             # 判断是否存在库
-            ret = cursor.execute('show databases like "{}"'.format('weibo'))
-            if ret == '0':
-                print("create databases")
-                self.mysql_create(connection, sql)
+            # cursor = connection.cursor()
+            # ret = cursor.execute('show databases like "{}"'.format('weibo'))
+            # if ret == '0':
+            #     print("create databases")
+            #     self.mysql_create(connection, sql)
+            self.mysql_create(connection, sql)
 
         except pymysql.OperationalError:
             sys.exit(u'系统中可能没有安装或正确配置MySQL数据库，请先根据系统环境安装或配置MySQL，再运行程序')
